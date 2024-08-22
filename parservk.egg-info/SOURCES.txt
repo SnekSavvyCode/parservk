@@ -1,0 +1,14 @@
+setup.cfg
+setup.py
+parservk/__init__.py
+parservk/baseclass.py
+parservk/classes.py
+parservk/correctionclass.py
+parservk/logger.py
+parservk/models.py
+parservk/version.py
+parservk.egg-info/PKG-INFO
+parservk.egg-info/SOURCES.txt
+parservk.egg-info/dependency_links.txt
+parservk.egg-info/requires.txt
+parservk.egg-info/top_level.txt
