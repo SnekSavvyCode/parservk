@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: parservk
-Version: 1.0
+Version: 1.1
 License: MIT
 Requires-Dist: requests==2.31.0
 Requires-Dist: grequests==0.7.0
