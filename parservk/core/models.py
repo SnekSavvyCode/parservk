@@ -1,43 +1,39 @@
-from dataclasses import dataclass
+from typing import Optional
+
+from pydantic import BaseModel
 
 VERSION_API = 5.132
 
-@dataclass
-class VKApi:
+class ParserVK(BaseModel):
 	tokens: list[str]
+	headers: dict[str, str]
 	v_api: float = VERSION_API
-	headers: dict[str, str] = None
-	proxies: dict[str, str] = None
+	proxies: Optional[dict[str, str]] = None
 
-@dataclass
-class DataProfile:
-	user_id: str = None
-	user_ids: list[str] = None
+class DataUsers(BaseModel):
+	user_id: Optional[str] = None
+	user_ids: Optional[list[str]] = None
 	subscriptions: bool = False
 	data_subscriptions: bool = False
 	friends: bool = False
 	data_friends: bool = False
 	followers: bool = False
 	data_followers: bool = False
-	wall: bool = False
+	walls: bool = False
 
-@dataclass
-class DataGroups:
-	group_id: str = None
-	group_ids: list[str] = None
+class DataGroups(BaseModel):
+	group_id: Optional[str] = None
+	group_ids: Optional[list[str]] = None
 	ismember: bool = False
-	user_id: str = None
-	user_ids: list[str] = None
+	user_id: Optional[str] = None
+	user_ids: Optional[list[str]] = None
 
-
-@dataclass
-class DataFriends:
-	user_id: str = None
-	user_ids: list[str] = None
+class DataFriends(BaseModel):
+	user_id: Optional[str] = None
+	user_ids: Optional[list[str]] = None
 	data_friends: bool = False
 	isgroup_id: bool = False
 
-@dataclass
-class DataWalls:
-	owner_id: str = None
-	owner_ids: list[str] = None
+class DataWalls(BaseModel):
+	owner_id: Optional[str] = None
+	owner_ids: Optional[list[str]] = None

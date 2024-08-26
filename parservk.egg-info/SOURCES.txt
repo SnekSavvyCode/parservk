@@ -8,8 +8,8 @@ parservk.egg-info/dependency_links.txt
 parservk.egg-info/requires.txt
 parservk.egg-info/top_level.txt
 parservk/core/__init__.py
-parservk/core/baseclass.py
-parservk/core/correctionclass.py
+parservk/core/base.py
+parservk/core/datacorrector.py
 parservk/core/logger.py
 parservk/core/models.py
 parservk/core/parservk.py

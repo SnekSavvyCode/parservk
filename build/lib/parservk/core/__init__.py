@@ -1,6 +1,6 @@
-from .parservk import TOKENS, HEADERS, Profile, Groups, Friends, Walls
-from .models import VKApi, VERSION_API, DataProfile, DataGroups, DataWalls, DataFriends
-from .baseclass import _CORRECTION_MODEL, BaseClass
+from .parservk import TOKENS, HEADERS, Users, Groups, Friends, Walls
+from .models import ParserVK, VERSION_API, DataUsers, DataGroups, DataWalls, DataFriends
+from .base import _DATACORRECTOR, Base
 from .logger import LOGGER
-from .correctionclass import Correction, InvalidDecoratorApplication
+from .datacorrector import DataCorrector, InvalidDecoratorApplication
 from ..version import __version__
