@@ -1,0 +1,4 @@
+build/
+dist/
+parservk.egg-info/
+setup.cfg
