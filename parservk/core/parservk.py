@@ -1,344 +1,448 @@
-import datetime
-import time
-import re
-import grequests
-import requests
+from typing import Any, Optional, Union
 
-from random import shuffle
-from json import dumps, loads, dump, load
+from pydantic import BaseModel
 
-from .base import Base, _DATACORRECTOR
-from .models import ParserVK, DataUsers, DataGroups, DataFriends, DataWalls, VERSION_API
+from .base import Base
+from .constants import VERSION_API, HEADERS
+from .models import DataUsers, DataGroups, DataFriends, DataWall
 
-TOKENS = ['vk1.a.Zi0sgk6hNRFSCZEafLX4q15E9FxFERgbIr1nrHChl_3wG59aAgJ2gjzq0YFHWUumha4iHALDTW7uNT1qQVBz8vLah5K8nu-Cks5YXAwie8dz_-WK6L95zeX35v_MePJTPFiqSAMin2ANIiQiNk7g-V8xl_EOZdmR1TpVawgxmxmrKH1s7GRc9ZOmm8W1fSvi', 'vk1.a.RuQO6_HiW-pwGtJWFEasSRGHqyUV2R-by-Y913PDxY71BPP2XmfJfbsnJUH5k3upV3kfa50-LZabe1P5UVXpxDyUE9Njz5oIFfeKC1JTkSrbmc2CuLysQznQ1ipvfZpaLdscKzdGCi90eOaD5RGoSfruRZyCZSDv7NrW4pTfCtg7JvVDVUM-cLNRFffKuIZR', 'vk1.a.4QjdrI3z5Vdvp1itlr15McNYHV4FKkvpHjKs6YwPr-yigMbM9VdT-iIhbpf2FC_MHJejSzkSJvWzH0g_qe-24OkhJzXDo8fe3jbeyevze02LRS8N6cs_RIAov_VrAVbqHeniE32HK7UxVoHaHbSKKiFx0sKrBOD9-mxI-qM5to2FsyTf5wWaJ3TlWhIXzLBt', 'vk1.a.uHdSySnm7PxaVEguf-11U5c4Mqw91PKmDw1mdqAC8D9XQiL3Ps5Hd1t9rDa-hFWGJf7Hn6isk3WoQD-8hDH9UjTI692EtahDHumsJZuRDgP44_XSWZN0LxoksalpaKvMFPORrS-HhsOJh0pv2zdHB0KfkQNICJudTYCZGzaoanxSKuOWsIFKX7uqUN7SrnH6']
-
-HEADERS = {
-			"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-			"Content-Type": "application/json",
-}
-
+from time import perf_counter as p
 class Users(Base):
-	
-	ERRORS = {"error_type": {}}
-	
-	FIELDS = "bdate, about, status, sex, domain, activities, books, city, country, contacts, photo_id, photo_max, nickname, schools, site, photo_50, photo_200, photo_100, photo_200_orig, photo_400_orig, verified, online, last_seen, quotes, relation, followers_count, career, counters, education, games, has_photo, home_town, interests, occupation, personal, screen_name, trending, tv, universities"
-	
-	_NAME = "USERS"
-		
-	def get(self, data: DataUsers):
-		if not isinstance(data, DataUsers):
-			raise TypeError("data type is DataUsers")
-		shuffle(self.tokens)
-		user_id = data.user_id
-		user_ids = data.user_ids
-		subscriptions = data.subscriptions
-		followers = data.followers
-		walls = data.walls
-		friends = data.friends
-		data_method = self.method_info(self._NAME)
-		method = data_method["methods"][0]
-		url = f"{data_method['url']}{method}"
-		param = {
-		"access_token": self.tokens[0],
-		"v": self.v,
-		"fields": self.FIELDS
-		}
-		subscriptions_data = None
-		friends_data = None
-		followers_data = None
-		walls_data = None
-		if not user_ids is None:
-			if not user_id is None: user_ids.append(user_id)
-			data = self._valid_data(user_ids, param, self._NAME, method)
-			if isinstance(data[0], grequests.AsyncRequest):
-				result = grequests.map(data)
-				users_data = []
-				for response in result:
-					if response and not "error" in response.json():
-						response = response.json()["response"]
-						for index in range(0, len(response)):
-							respon = _DATACORRECTOR._correction_profile(response[index])
-							users_data.append(loads(dumps({respon["id"]: {"profile": respon, "subscriptions": subscriptions_data, "walls": walls_data, "friends": friends_data}, "first_name": str(respon.get("first_name")), "last_name": str(respon.get("last_name")), "sex": respon["sex"], "platform": respon["last_seen"]["platform"], "domain": respon.get("domain", "Unknown")})))
-					elif not response:
-						self._LOGGER.warning(f"{response.url} status code {response.status_code}.")	
-				return users_data
-			else:
-				respon = requests.post(data[0], data=data[1])
-				if respon and not "error" in respon.json():
-					responses = []
-					response = respon.json()["response"]
-					for index in range(0, len(response)):
-						respon = _DATACORRECTOR._correction_profile(response[index])
-						responses.append(loads(dumps({respon["id"]: {"profile": respon, "subscriptions": subscriptions_data, "followers": followers_data, "friends": friends_data, "walls": walls_data}, "first_name": str(respon.get("first_name")), "last_name": str(respon.get("last_name")), "sex": respon["sex"], "platform": respon["last_seen"]["platform"], "domain": respon.get("domain", "Unknown")})))
-					return responses
-				elif not respon:
-					self._LOGGER.warning(f"{respon.url} status code {respon.status_code}.")
-		param.update({"user_id": user_id})
-		response = requests.post(url, params=param, headers=self.headers)
-		if response and not "error" in response.json() and response.json()["response"]:				
-			response = _DATACORRECTOR._correction_profile(response.json()["response"][0])
-			if subscriptions:
-				subscriptions_data = self.get_connections(DataUsers(user_id=user_id, data_subscriptions=True),"subscriptions")
-			if friends:
-				friends_data = Friends(ParserVK(self.tokens, self.v, self.headers, self.proxies)).get_friends(DataFriends(user_id=user_id, data_friends=True))
-			if followers:
-				followers_data = self.get_connections(DataUsers(user_id=user_id, data_followers=True),"followers")
-			if walls:
-				walls_data = Walls(ParserVK(self.tokens, self.v, self.headers, self.proxies)).get_wall(DataWalls(owner_id=user_id))
-			return loads(dumps({response["id"]: {"profile": response, "subscriptions": subscriptions_data, "followers": followers_data, "walls": walls_data, "friends": friends_data}, "first_name": str(response.get("first_name")), "last_name": str(response.get("last_name")), "sex": response["sex"], "platform": response["last_seen"]["platform"], "domain": response.get("domain", "Unknown")}))
-	
-	
-	
-	def get_connections(self, data: DataUsers, method: str = "subscriptions") -> dict:
-		if not isinstance(data, DataUsers):
-			raise TypeError("Data type is DataUsers")
-		if not method.lower() in ["subscriptions", "followers"]:
-			raise ValueError(f"Method {method} not found.")
-		shuffle(self.tokens)
-		user_id = data.user_id
-		data_method = self.method_info(self._NAME)
-		if method.lower() == "subscriptions": method_connection = data_method["methods"][1]
-		else: method_connection = data_method["methods"][2]
+    """
+    Wrapper over the users submethods.
+    
+    ** The full documentation can be viewed on the official website at the url: `https://dev.vk.com/en/method/users` **
+    """
+    
+    fields_list = ['bdate', 'about', 'status', 'sex', 'domain', 'activities', 'books', 'city', 'country', 'contacts', 'photo_id', 'photo_max', 'nickname', 'schools', 'site', 'photo_50', 'photo_200', 'photo_100', 'photo_200_orig', 'photo_400_orig', 'verified', 'online', 'last_seen', 'quotes', 'relation', 'followers_count', 'career', 'counters', 'education', 'games', 'has_photo', 'home_town', 'interests', 'occupation', 'personal', 'screen_name', 'trending', 'tv', 'universities']
 
-		url = f"{data_method['url']}{method_connection}"
-		data_sub = data.data_subscriptions
-		data_followers = data.data_followers
-		param = {
-		"access_token": self.tokens[0],
-		"v": self.v,
-		"user_id": user_id
-			}
-		response = requests.get(url, params=param, headers=self.headers)
-		if response and not "error" in response.json():
-			response = response.json()["response"]
-			data_users, data_groups = {"users": 0}, {"groups": 0}
-			if data_sub and method.lower() == "subscriptions":
-				count_users = response.get("users").get("count")
-				count_groups = response.get("groups").get("count")
-				if count_users == 1:
-					data_users = self.get(DataUsers(response.get("users").get("items")[0]))
-				elif count_users > 1:
-					data_users = self.get(DataUsers(user_ids=response.get("users").get("items")))
-	
-				if count_groups == 1:
-					data_groups = Groups(ParserVK(self.tokens, self.v, self.headers, self.proxies)).get_group(DataGroups(group_id=response.get("users").get("items")[0]))
-							
-				elif count_groups > 1:
-					data_groups = Groups(ParserVK(self.tokens, self.v, self.headers, self.proxies)).get_group(DataGroups(group_ids=response.get("users").get("items")))
-				return {"users": data_users, "groups": data_groups}
-			
-			elif data_followers and method.lower() == "followers":
-				count_items = response["count"]
-				if count_items == 1:
-					data_followers = self.get(DataUsers(response["items"][0]))
-				elif count_items > 1:
-					data_followers = self.get(DataUsers(user_ids=response["items"]))
-				return data_followers
-			return response
-		elif not response:
-			self._LOGGER.warning(f"{response.url} status code {response.status_code}.")						
-		return None
+    _NAME = "USERS"
+    _limits = {"user_ids": 1000}
+    
+    # Temporary implementation
+    DATACLASS = DataUsers
+
+    def get(self, ispool: bool = False, **kwargs: Any) -> Union[dict[str, list], list]:
+        """
+        Get user data based on provided params.
+        
+        ** The full documentation can be viewed on the official website at the url: `https://dev.vk.com/en/method/users.get` **
+
+        :param ispool: Flag to indicate if using pool(This may be necessary when calling other submethods).
+        :param kwargs: The main params of the query.
+            :param user_id: Id user or username(Optional).
+            :param user_ids: List users ids or usernames.
+            :param friends: Flag about getting the user's friends if the number of users is equal to 1(Unofficial param).
+            :param subscriptions: Flag about getting the user's subscriptions the number of users is equal to 1(Unofficial param).
+            :param followers: Flag about getting the user's followers if the number of users is equal to 1(Unofficial param).
+            :param wall: Flag about getting the user's walls if the number of users is equal to 1(Unofficial param).
+            :param data_friends: Flag indicating whether to retrieve information about each friend, only if the friends param is set to True and and the number of users is equal to 1(Unofficial param).
+            :param data_subscriptions: Flag indicating whether to retrieve information about each subscription, only if the subscriptions param is set to True and and the number of users is equal to 1(Unofficial param).
+            :param data_followers: Flag indicating whether to retrieve information about each follower, only if the followers param is set to True and and the number of users is equal to 1(Unofficial param).
+        :return: Dict containing user data if the ispool param is set to False, otherwise a list of querys.
+            - "users": List of users. If no users have been specified, it returns an empty list.
+            - "friends": List of friends. If no user have been specified, it returns an empty list or the friends param is set to False.
+            - "subscriptions": List of subscriptions. If no user have been specified, it returns an empty list or the subscriptions param is set to False.
+            - "followers": List of followers. If no user have been specified, it returns an empty list or the followers param is set to False.
+            - "wall": List of walls. If no user have been specified, it returns an empty list or the wall param is set to False.
+        """
+        
+        # Temporary implementation
+        data = self.DATACLASS(**kwargs)
+        user_id = data.user_id
+        user_ids = data.user_ids
+        querys = []
+        params = self._update_all(params=self.base_params.copy(), fields=self.FIELDS)
+        
+        if not user_id is None:
+            user_ids.append(user_id)
+        querys.extend(
+            self.get_querys_from_data(
+                user_ids, params, submethod="get", multi_ids="user_ids"
+            )
+        )
+
+        if ispool:
+            return querys
+        
+        if data.subscriptions:
+            querys.extend(self.getSubscriptions(user_id=user_id, ispool=True))
+
+        if data.followers:
+            querys.extend(self.getFollowers(user_id=user_id, ispool=True))
+
+        if data.friends:
+            querys.extend(self.parser.friends.get(user_id=user_id, ispool=True))
+
+        if data.wall:
+        	querys.extend(self.parser.wall.get(owner_id=user_id, ispool=True))
+        self.poolmanager.add(querys)
+        self.poolmanager.start(
+            callable_func=self.handlers.main_handler,
+            data_subscriptions=data.data_subscriptions,
+            data_followers=data.data_followers,
+            data_friends=data.data_friends,
+        )
+        
+        
+        result = self.poolmanager.callable_results[-1]
+        users = result.get("users", {})
+        friends = result.get("friends", {})
+        wall = result.get("wall", {})
+        return {"users": users.get("get", []), "friends": friends.get("get", []), "subscriptions": users.get("getsubscriptions", []), "followers": users.get("getfollowers", []), "wall": wall.get("get", [])}
+
+    def getSubscriptions(self, ispool: bool = False, **kwargs: Any) -> list[dict[str, list]]:
+        """
+        Get user subscriptions based on provided params.
+        
+        ** The full documentation can be viewed on the official website at the url: `https://dev.vk.com/en/method/users.getSubscriptions` **
+        
+        :param ispool: Flag to indicate if using pool(This may be necessary when calling other submethods).
+        :param kwargs: The main params of the query.
+            :param user_id: Id user or username(Optional).
+            :param data_subscriptions: Flag indicating whether to retrieve information about each subscription, only if the subscriptions param is set to True and and the number of users is equal to 1(Unofficial param).
+        :return: A list of user subscriptions if the ispool param is set to False, otherwise a list of querys.
+        """
+
+        return self._get_connections(method="getsubscriptions", ispool=ispool,  **kwargs)
+
+    def getFollowers(self, ispool: bool = False, **kwargs: Any) -> list[dict[str, list]]:
+        """
+        Get user followers based on provided params.
+        
+        ** The full documentation can be viewed on the official website at the url: `https://dev.vk.com/en/method/users.getFollowers` **
+        
+        :param ispool: Flag to indicate if using pool(This may be necessary when calling other submethods).
+        :param kwargs: The main params of the query.
+            :param user_id: Id user or username(Optional).
+            :param data_followers: Flag indicating whether to retrieve information about each follower, only if the followers param is set to True and and the number of users is equal to 1(Unofficial param).
+        :return: A list of user followers if the ispool param is set to False, otherwise a list of querys.
+        """
+
+        return self._get_connections(method="getfollowers", ispool=ispool,  **kwargs)
+
+    def _get_connections(
+        self, method: str = "getsubscriptions", ispool: bool = False, **kwargs: Any
+    ) -> list[dict[str, list]]:
+        """
+        Wrapper over the getSubscriptions and getFollowers methods.
+        
+        ** We recommend using getSubscriptions and getFollowers instead of this method. **
+        
+        :param method: Name method(getsubscriptions, getfollowers).
+        :param ispool: Flag to indicate if using pool(This may be necessary when calling other submethods).
+        :param kwargs: The main params of the query.
+            :param user_id: Id user or username(Optional).
+            :param data_subscriptions: Flag indicating whether to retrieve information about each subscription, only if the subscriptions param is set to True and and the number of users is equal to 1(Unofficial param).
+            :param data_followers: Flag indicating whether to retrieve information about each follower, only if the followers param is set to True and and the number of users is equal to 1(Unofficial param).
+        :return: A list of user subscriptions or followers if the ispool param is set to False, otherwise a list of querys.
+        """
+        
+        # Temporary implementation
+        data = self.DATACLASS(**kwargs)
+        method = method.lower()
+        user_id = data.user_id
+        if user_id is None:
+            return []
+        query = self.get_querys_from_data(
+            [user_id], self._update_all(params=self.base_params.copy()), submethod = method, multi_ids="user_ids"
+        )
+        if ispool:
+            return query
+        self.poolmanager.add(query)
+        self.poolmanager.start(
+            callable_func=self.handlers.main_handler,
+            data_subscriptions=data.data_subscriptions,
+            data_followers=data.data_followers,
+            
+        )
+
+        return self.poolmanager.callable_results[-1]["users"][method]
 
 class Groups(Base):
-	
-	FIELDS = "id, name, screen_name, is_closed, deactivated, type, photo_50, photo_100, photo_200, activity, 		addresses, age_limits, city,  contacts, counters, country, cover, crop_photo, description, has_photo, links, 	main_album_id, main_section, market, members_count, place, public_date_label, site, start_date, finish_date, 	status, trending, verified, wall, wiki_page"
-	_NAME = "GROUPS"			
-	
-	def get_group(self, data: DataGroups):
-		if not isinstance(data, DataGroups):
-			raise TypeError("data type is DataGroups")
-		shuffle(self.tokens)
-		group_id = data.group_id
-		group_ids = data.group_ids
-		data_method = self.method_info(self._NAME)
-		method = data_method["methods"][0]	
-		param = {
-		"access_token": self.tokens[0],
-		"v": self.v,
-		"fields": self.FIELDS
-		}
-		if not group_ids is None:
-			if not group_id is None: group_ids.append(group_id)
-			data = self._valid_data(group_ids, param, self._NAME, method, name_attr="group_ids")
-			if isinstance(data, grequests.AsyncRequest):
-				result =  grequests.map(data)
-				group_data = []
-				for data in result:
-					if data and not "error" in data.json():
-						group_data.append(data.json()["response"])
-				return group_data
-			response = requests.post(data[0], data=data[1], headers=self.headers)
-			if response and not "error" in response.json():
-				return response.json()["response"]
-		url = f"{data_method['url']}{method}"
-		param.update({"group_id": group_id})
-		response = requests.get(url, params=param, headers=self.headers)
-		if response and not "error" in response.json():
-			return response.json()["response"]
-		elif not response:
-				self._LOGGER.warning(f"{response.url} status code {response.status_code}.")
-		return None
-	
-	def get_ismember(self, data: DataGroups):
-		if not isinstance(data, DataGroups):
-			raise TypeError("data type is DataGroups")
-		shuffle(self.tokens)
-		group_id = data.group_id
-		user_id = data.user_id
-		user_ids = data.user_ids
-		data_method = self.method_info(self._NAME)
-		method = data_method["methods"][2]
-		params = {
-		"access_token": self.tokens[0],
-		"group_id": group_id,
-		"v": self.v,
-		}
-		if not user_ids is None:
-			if not user_id is None: user_ids.append(user_id)
-			data = self._valid_data(group_ids, params, self._NAME, method, "users_ids")
-			if isinstance(data, grequests.AsyncRequest):
-				result = grequests.map(data)
-				group_data = []
-				for data in result:
-					if data:
-						group_data.append(data.json())
-				return group_data
-			response = requests.post(data[0], data=data[1], headers=self.headers)
-			if response:
-				return response.json()
-		url = f"{data_method['url']}{method}"
-		params.update({"user_id": user_id})
-		response = requests.get(url, params=params, headers=self.headers)
-		if response and not "error" in response.json():
-			return response.json()["response"]
-		elif not response:
-			self._LOGGER.warning(f"{response.url} status code {response.status_code}.")
-		return None
-					
-	def get_members(self, data: DataGroups) -> dict:
-		if not isinstance(data, DataGroups):
-			raise TypeError("data type is DataGroups")
-		shuffle(self.tokens)
-		group_id = data.group_id
-		data_method = self.method_info(self._NAME)
-		method = data_method["methods"][1]
-		url = f"{data_method['url']}{method}"	
-		param = {
-		"access_token": self.tokens[0],
-		"v": self.v,
-		"group_id": group_id,
-		"sort": "id_asc",
-		"count": 1000,
-		"offset": 0
-		}
-		start = time.perf_counter() 
-		response =  requests.post(url, params=param, headers=self.headers)
-		end = time.perf_counter() 
-		print(end-start)
-		urls, items = [], []
-		if response and not "error" in response.json():
-			users_count = response.json().get("response", {}).get("count", 0)
-			items.append(response.json()["response"]["items"])
-			for step in range(1000, response.json().get("response", {}).get("count", 0)+1, 1000):
-				shuffle(self.tokens)
-				param.update({"offset": step, "access_token": self.tokens[0]})
-				new_url = url + "?" + "".join([f"&{key}={value}" for key, value in param.items()])
-				urls.append(new_url.replace("?&", "?"))
-			response = grequests.map([grequests.AsyncRequest("POST", url, headers=self.headers) for url in urls])
-			for data in response:
-				if data and not "error" in data.json():
-					items.append(data.json().get("response", {}).get("items"))
-			return {"items": items, "count": users_count}
-		elif not response:
-			self._LOGGER.warning(f"{response.url} status code {response.status_code}.")
-		return None		
+    """
+    Wrapper over the groups submethods.
+    
+    ** The full documentation can be viewed on the official website at the url: `https://dev.vk.com/en/method/groups` **
+    """
+
+    fields_list = ['id', 'name', 'screen_name', 'is_closed', 'deactivated', 'type', 'photo_50', 'photo_100', 'photo_200', 'activity', 'addresses', 'age_limits', 'city', 'contacts', 'counters', 'country', 'cover', 'crop_photo', 'description', 'has_photo', 'links', 'main_album_id', 'main_section', 'market', 'members_count', 'place', 'public_date_label', 'site', 'start_date', 'finish_date', 'status', 'trending', 'verified', 'wall', 'wiki_page']
+    
+    _NAME = "GROUPS"
+    _limits = {"group_ids": 500, "user_ids": 500}
+    
+    # Temporary implementation
+    DATACLASS = DataGroups
+
+    def getById(self, ispool: bool = False, **kwargs: Any) -> list[dict]:
+        """
+        Get group data based on provided params.
+        
+        ** The full documentation can be viewed on the official website at the url: `https://dev.vk.com/en/method/groups.getById` **
+
+        :param ispool: Flag to indicate if using pool(This may be necessary when calling other submethods).
+        :param kwargs: The main params of the query.
+            :param group_id: Id group or username(Optional).
+            :param group_ids: List groups ids or usernames.
+        :return: A list groups data if the ispool param is set to False, otherwise a list of querys.
+        """
+
+        # Temporary implementation
+        data = self.DATACLASS(**kwargs)
+
+        group_id = data.group_id
+        group_ids = data.group_ids
+        if not group_id is None:
+            group_ids.append(group_id)
+        params = self._update_all(params=self.base_params.copy(), fields=self.FIELDS)
+        query = self.get_querys_from_data(
+            group_ids, params, submethod="getbyid", multi_ids="group_ids"
+        )
+        if ispool:
+            return query
+        self.poolmanager.add(query)
+        self.poolmanager.start(
+            callable_func=self.handlers.main_handler,
+          
+        )
+        return self.poolmanager.callable_results[-1]["groups"]["getbyid"]
+
+    def isMember(self, ispool: bool = False, **kwargs: Any) -> list[Union[int, dict]]:
+        """
+        Check if a user is a member of a group.
+        
+        ** The full documentation can be viewed on the official website at the url: `https://dev.vk.com/en/method/groups.isMember` **
+        
+        :param ispool: Flag to indicate if using pool(This may be necessary when calling other submethods).
+        :param kwargs: The main params of the query.
+            :param group_id: Id group or username(Optional).
+            :param user_id: Id user or username(Optional).
+            :param user_ids: List users ids or usernames.
+        :return: A list containing information about whether the user is a member of the group if the ispool param is set to False, otherwise a list of querys.
+        """
+
+        # Temporary implementation
+        data = self.DATACLASS(**kwargs)
+
+        group_id = data.group_id
+        user_id = data.user_id
+        user_ids = data.user_ids
+        if not user_id is None:
+            user_ids.append(user_id)
+        params = self._update_all(params=self.base_params.copy(), group_id=group_id)
+        query = self.get_querys_from_data(
+            user_ids, params, submethod= "ismember", multi_ids="user_ids"
+        )
+        if ispool:
+            return query
+        self.poolmanager.add(query)
+        self.poolmanager.start(callable_func=self.handlers.main_handler)
+        return self.poolmanager.callable_results[-1]["groups"]["ismember"]
+
+    def getMembers(self, ispool: bool = False, **kwargs: Any) -> list:
+        """
+        Retrieve members of a group based on provided params.
+
+        ** The full documentation can be viewed on the official website at the url: `https://dev.vk.com/en/method/groups.getMembers` **
+
+        :param ispool: Flag to indicate if using pool(This may be necessary when calling other submethods).
+        :param kwargs: The main params of the query.
+            :param group_id: Id group or username.
+            :param count: Number of members to retrieve in one query. Default: 1000.
+            :param offset: Offset needed to return a specific subset of members. Default: 0.
+            :param sort: Sort order. Default: "id_asc"
+            :param max: Maximum number of members to retrieve. Default: "all".
+        :return: The list is divided into lists in each of them "count" ids if the ispool param is set to False, otherwise a list of querys.
+        """
+
+        # Temporary implementation
+        data = self.DATACLASS(**kwargs)
+
+        group_id = data.group_id
+        count = data.count
+        offset = data.offset
+        params = self._update_all(
+            params=self.base_params.copy(), count=count, offset=offset, sort=data.sort
+        )
+        multi_ids = "group_ids"
+        query = self.get_querys_from_data(
+            [group_id], params, submethod="getmembers", multi_ids=multi_ids
+        )
+        if ispool:
+            return query
+        self.poolmanager.add(query)
+        self.poolmanager.start(
+            callable_func=self.handlers.main_handler,
+            params=params,
+            count=count,
+            min=offset + count,
+            max=data.max,
+            group_id=group_id,
+            multi_ids=multi_ids
+        )
+        return self.poolmanager.callable_results[-1]["groups"]["getmembers"]
+
 
 class Friends(Base):
-	_NAME = "FRIENDS"
-	
-	def get_friends(self, data:DataFriends):
-		if not isinstance(data, DataFriends):
-			raise TypeError("data type is DataFriends")
-		shuffle(self.tokens)
-		user_id = data.user_id
-		user_ids = data.user_ids
-		data_friends = data.data_friends
-		data_method = self.method_info(self._NAME)
-		method = data_method["methods"][0]
-		url = f"{data_method['url']}{method}"
-		param = {
-		"access_token": self.tokens[0],
-		"v": self.v
-		}
-		if not user_ids is None:
-			if user_id is None: user_ids.append(user_id)
-			data = self._valid_data(user_ids, param, self._NAME, method, name_attr="user_ids")
-			if isinstance(data, grequests.AsyncRequest):
-				result =  grequests.map(data)
-				users_data = []
-				for data in result:
-					if data and not "error" in data.json():
-						users_data.append(data.json()["response"])
-				return users_data
-			response = requests.post(data[0], data=data[1], headers=self.headers)
-			if response and not "error" in response.json():
-				return response.json()["response"]
-		param.update({"user_id": user_id})
-		response = requests.get(url, params=param, headers=self.headers)
-		if response and not "error" in response.json():
-			count_friends = response.json()["response"]["count"]
-			if data_friends and count_friends > 1:
-				response = Users(ParserVK(self.tokens, self.v, self.headers, self.proxies)).get(DataUsers(user_ids=response.json()["response"]["items"]))
-				return {"items": response, "count": count_friends}
-			elif data_friends and count_friends == 1:
-				response = Users(ParserVK(self.tokens, self.v, self.headers, self.proxies)).get(DataUsers(user_id=response.json()["response"]["items"][0]))
-				return  {"items": response, "count": count_friends}
-			return response.json()["response"]
-		elif not response:
-					self._LOGGER.warning(f"{response.url} status code {response.status_code}.")	
+    """
+    Wrapper over the friends submethods.
+    
+    ** The full documentation can be viewed on the official website at the url: `https://dev.vk.com/en/method/friends` **
+    """
 
-class Walls(Base):
-	_NAME = "WALLS"
-	
-	
-	def get_wall(self, data: DataWalls):
-		if not isinstance(data, DataWalls):
-			raise TypeError("type data is DataWalls")
-		shuffle(self.tokens)
-		owner_id = data.owner_id
-		owner_ids = data.owner_ids
-		data_method = self.method_info(self._NAME)
-		method = data_method["methods"][0]
-		url = f"{data_method['url']}{method}"
-		params = {
-		"access_token": self.tokens[0],
-		"v": self.v,
-		"photo_sizes": 0,
-		"count": 100,
-		"offset": 0
-		}
-		if not owner_ids is None:
-			if owner_id is None: owner_ids.append(owner_id)	
-		params.update({"owner_id": owner_id})		
-		response = requests.get(url, params=params, headers=self.headers)
-		items = []
-		if response and not "error" in response.json():
-			wall_count = response.json()["response"]["count"]
-			items.append(_DATACORRECTOR._correction_wall(response.json()["response"]))
-			if wall_count > 100:
-				new_wall = []
-				for offset in range(100, wall_count+1, 100):
-					shuffle(self.tokens)
-					params.update({"offset": offset, "access_token": self.tokens[0]})
-					new_wall.append(params.copy())
-				response = [grequests.get(url, params=params) for params in new_params]
-				result = grequests.map(response)
-				for data in result:
-					if data and not "error" in data.json():
-						items.append(_DATACORRECTOR._correction_wall(response.json()["response"]))
-					elif not data:
-						self._LOGGER.warning(f"{data.url} status code {data.status_code}.")
-			return items
-		elif not response:
-			self._LOGGER.warning(f"{response.url} status code {response.status_code}.")
-		return None
+    _NAME = "FRIENDS"
+    _limits = {"user_ids": 1}
+      
+    # Temporary implementation
+    DATACLASS = DataFriends
+
+    def get(self, ispool: bool = False, **kwargs: Any) -> list[Union[dict, int]]:
+        """
+        Get friends data based on provided params.
+
+        ** The full documentation can be viewed on the official website at the url: `https://dev.vk.com/en/method/friends.get` **
+
+        :param ispool: Flag to indicate if using pool (This may be necessary when calling other submethods).
+        :param kwargs: The main params of the query.
+            :param user_id: Id user or username(Optional).
+            :param user_ids: List of user ids or usernames.
+            :param data_friends: Flag indicating whether to retrieve information about each friend(Unofficial param).
+        :return: A list of friends data if the ispool param is set to False, otherwise a list of queries.
+        """
+
+        # Temporary implementation
+        data = self.DATACLASS(**kwargs)
+
+        user_id = data.user_id
+        user_ids = data.user_ids
+        if not user_id is None:
+            user_ids.append(user_id)
+        query = self.get_querys_from_data(
+            user_ids, self._update_all(params=self.base_params.copy()), submethod="get", multi_ids="user_ids"
+        )
+        if ispool:
+            return query
+        self.poolmanager.add(query)
+        self.poolmanager.start(
+            callable_func=self.handlers.main_handler,
+            data_friends=data.data_friends,
+        )
+        return self.poolmanager.callable_results[-1]["friends"]["get"]
+
+class Wall(Base):
+    """
+    Wrapper over the wall submethods.
+    
+    ** The full documentation can be viewed on the official website at the url: `https://dev.vk.com/en/method/wall` **
+    """
+
+    _NAME = "WALL"
+    _limits = {"user_ids": 1, "owner_ids": 1}
+    
+    # Temporary implementation
+    DATACLASS = DataWall
+    
+    def get(self, ispool: bool = False, **kwargs: Any):
+        """
+        Retrieve wall posts based on provided params.
+
+        ** The full documentation can be viewed on the official website at the url: `https://dev.vk.com/en/method/wall.get` **
+
+        :param ispool: Flag to indicate if using pool(This may be necessary when calling other submethods).
+        :param kwargs: The main params of the query.
+            :param owner_id: Id of the owner of the wall(User or community).
+            :param count: Number of posts to retrieve in one query. Default: 100.
+            :param offset: Offset needed to return a specific subset of posts. Default: 0.
+            :param max: Maximum number of posts to retrieve. Default: "all".
+        :return: A list of wall posts if the ispool param is set to False, otherwise a list of queries.
+        """
+
+        # Temporary implementation
+        data = self.DATACLASS(**kwargs)
+
+        owner_id = data.owner_id
+        count = data.count
+        offset = data.offset
+        params = self._update_all(params=self.base_params.copy(), count=count, offset=offset)
+        query = self.get_querys_from_data(
+            [owner_id], params, submethod="get", multi_ids="owner_ids"
+        )
+        if ispool:
+        	return query
+        self.poolmanager.add(query)
+        self.poolmanager.start(
+            callable_func=self.handlers.main_handler,
+            count=count,
+            owner_id=owner_id,
+            max=data.max,
+            min=count+offset,
+            multi_ids="owner_ids",
+            params=params
+        )
+        return self.poolmanager.callable_results[-1]["wall"]["get"]
+
+class ParserVK(BaseModel):
+    """
+    The main class of the `parservk` lib, providing a interface to interact with the VK API(Has unofficial params and funcs).
+    
+    ** Not all methods and submethods are supported at the moment. You can help us and create your own concept of methods or submethods, then send it to the mail: `codecobra03@gmail.com` **
+
+    :param tokens: Tokens to VK API.
+    :param v_api: Version API. Default 5.132.
+    :param headers: Headers.
+    :param proxies: Proxies(Optional).
+    :param _dynamic_methods: Private param for create methods.
+    """
+
+    tokens: set[str]
+    v_api: float = VERSION_API
+    headers: dict[str, Any] = HEADERS
+    proxies: Optional[dict[str, Any]] = None
+
+    _dynamic_methods: dict[str, Any] = {}
+    
+    def __init__(self, **kwargs: Union[set[str], float, dict[str, Any]]) -> None:
+    	super().__init__(**kwargs)
+    	self.__create_dynamic_methods()
+    
+    # Temporary implementation
+    def __call__(self, method: str, submethod: str, **kwargs: Any):
+    	"""
+    	One of the options for accessing the method's submethod and getting data by kwargs.
+    	"""
+
+    	class_ = getattr(self, method.lower())
+    	
+    	try:
+
+    		return getattr(class_, submethod)(**kwargs)
+    	
+    	except Exception as e:
+
+    		return None
+
+    def __getattr__(self, name: str) -> Any:
+        """
+        Get a dynamic methods.
+        
+        :return: Value by attr name.
+        """
+        
+        return self._dynamic_methods.get(name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """
+        Set a dynamic methods.
+        """
+        
+        self._dynamic_methods[name] = value
+    
+    def __create_dynamic_methods(self) -> None:
+    	"""
+    	Creates the main sections(methods) for working with the VK API.
+    	
+    	** All available sections(methods) and their submethods can be viewed on the official website at the url: `https://dev.vk.com/en/method` **
+    	"""
+    	
+    	for subclass in Base.__subclasses__():
+    		self._dynamic_methods[subclass.__name__.lower()] = subclass(self)

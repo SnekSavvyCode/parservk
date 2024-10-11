@@ -1,4 +1,9 @@
+**/__pycache__/
+**README.md
+*test*
+.venv/
 build/
 dist/
 parservk.egg-info/
+parservk/core/exceptions/
 setup.cfg

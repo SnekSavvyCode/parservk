@@ -1,8 +1,26 @@
+import importlib
+
 from setuptools import setup, find_packages
+
+with open('README.md', 'r') as file:
+    long_description = file.read()
+
+
+
+metadata = importlib.import_module("parservk.version").__metadata__
+
 setup(
-	name="parservk",
-	version="1.1",
+	name=metadata["name"],
+	version=metadata["version"],
+	author=metadata["author"],
+	author_email=metadata["author_email"],
+	description=metadata["description"],
+	long_description=long_description,
+	url=metadata["url"],
 	packages=find_packages(),
-	install_requires=["requests==2.31.0", "grequests==0.7.0"],
-	license="MIT"
+	install_requires=[],
+	license=metadata["license"],
+	keywords=metadata["keywords"],
+	classifiers=metadata["classifiers"],
+	python_requires=metadata["python_requires"]
 )

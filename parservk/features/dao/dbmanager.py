@@ -6,7 +6,7 @@ from typing import Optional, Union, Any
 from sqlalchemy import create_engine, Engine, MetaData
 from sqlalchemy.orm import declarative_base, DeclarativeMeta, sessionmaker
 
-from ...core import LOGGER
+from ...core import _logger
 from .dynamictablemeta import DynamicTableMeta
 from .models import DataModel, DBSettings
 
@@ -32,7 +32,7 @@ class DBManager:
         host: str = "localhost",
         port: int = 8000,
         settings: DBSettings = DBSettings(),
-        logger: Logger = LOGGER
+        logger: Logger = _logger
     ):
         """
         Initialize database manager

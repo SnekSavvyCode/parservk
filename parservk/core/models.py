@@ -1,39 +1,32 @@
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel
 
-VERSION_API = 5.132
-
-class ParserVK(BaseModel):
-	tokens: list[str]
-	headers: dict[str, str]
-	v_api: float = VERSION_API
-	proxies: Optional[dict[str, str]] = None
-
-class DataUsers(BaseModel):
-	user_id: Optional[str] = None
-	user_ids: Optional[list[str]] = None
+class DataBase(BaseModel):
+	user_id: Optional[Union[str, int]] = None
+	user_ids: list[Union[str, int]] = []
+	sort: str = "id_asc"
+class DataGroupsAndWall(BaseModel):
+	count: int = 1000
+	offset: int = 0
+	max: Union[int, str] = "all"
+class DataUsers(DataBase):
 	subscriptions: bool = False
 	data_subscriptions: bool = False
 	friends: bool = False
 	data_friends: bool = False
 	followers: bool = False
 	data_followers: bool = False
-	walls: bool = False
+	wall: bool = False
 
-class DataGroups(BaseModel):
-	group_id: Optional[str] = None
-	group_ids: Optional[list[str]] = None
-	ismember: bool = False
-	user_id: Optional[str] = None
-	user_ids: Optional[list[str]] = None
+class DataGroups(DataBase, DataGroupsAndWall):
+	group_id: Optional[Union[str, int]] = None
+	group_ids: list[str, int] = []
 
-class DataFriends(BaseModel):
-	user_id: Optional[str] = None
-	user_ids: Optional[list[str]] = None
+class DataFriends(DataBase):
 	data_friends: bool = False
-	isgroup_id: bool = False
 
-class DataWalls(BaseModel):
-	owner_id: Optional[str] = None
-	owner_ids: Optional[list[str]] = None
+class DataWall(DataGroupsAndWall):
+	count: int = 100
+	owner_id: Optional[Union[str, int]] = None
+	owner_ids: list[Union[str, int]] = []

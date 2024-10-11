@@ -1,0 +1,13 @@
+certifi==2024.7.4
+charset-normalizer==3.3.2
+gevent==24.2.1
+greenlet==3.0.3
+grequests==0.7.0
+idna==3.8
+requests==2.32.3
+SQLAlchemy==2.0.32
+typing_extensions==4.12.2
+urllib3==2.2.2
+zope.event==5.0
+zope.interface==7.0.2
+pydantic==1.10.17
